@@ -118,7 +118,16 @@ module.exports = (socket:Socket) => {
         game.games[roomName].gameOver = gameOver;
         updateScreens(roomName, turn);
     });
-
+    socket.on('resign', (roomId:string, username: string) => {
+        clearInterval(game.intervals[roomId]);
+        if(game.games[roomId] && game.games[roomId].whiteName == username){
+            game.games[roomId].gameOver = 'loss';
+            updateRatings(game.games[roomId], 'loss');
+        }else{
+            game.games[roomId].gameOver = 'win';
+            updateRatings(game.games[roomId], 'win');
+        }
+    })
     socket.on("join", function(obj) {
         const opp = findActiveOpponent(obj);
         if (opp) {
@@ -130,9 +139,9 @@ module.exports = (socket:Socket) => {
                 blackName: opp.username,
                 blackRating: opp.rating,
                 gameOver: "nill",
-                whiteTimer: 120,
+                whiteTimer: 120*obj.variant,
                 game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-                blackTimer: 120,
+                blackTimer: 120*obj.variant,
             };
             game.games[newGame.id] = newGame;
             io.emit('joined/' + newGame.whiteName, newGame);
