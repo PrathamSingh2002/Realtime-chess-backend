@@ -26,14 +26,14 @@ exports.login = async (req, res) => {
             throw new Error("user not found")
         }else{
             const match = await comparePassword(userData.password, exist.password)
-           if(match){
-                delete exist.password
-                res.json(exist)
+            if(match){
+                const { password, ...safeUser } = exist.toObject(); // use toObject() to ensure you are working with a plain JavaScript object
+                const token = jwt.sign(safeUser, process.env.JWT_SECRET, { expiresIn: "1d" }); // Set token expiration
+                res.json(token);
             }else{
                 throw("Incorrct password")
             }
         }
-        // const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }); // Set token expiration
         // const data = await newUser.save();
     } catch (error) {
         console.error(error);
@@ -52,11 +52,11 @@ exports.signup = async (req, res) => {
             games:0,
             password:userData.password
         })
-        // const payload = userData;
-        // const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }); // Set token expiration
         const data = await newUser.save();
-        delete data.password;
-        res.json(data)
+        delete userData.password;
+        const payload = userData;
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' }); // Set token expiration
+        res.json(token)
     } catch (error) {
         console.error(error);
         res.status(400).send('Internal Server Error');
@@ -77,10 +77,16 @@ exports.getAllUsers = async (req, res) => {
 exports.getGameStats = async (req, res) => {
     try {
         const data = req.body;
-        if(game.games[data.id]){
-            res.json(game.games[data.id]);
+        if(!game.games[data.id]){
+            res.status(404).send("Game not found")
         }else{
-            throw new Error("game not fouund")
+            const gameObj = game.games[data.id];
+            if(req.user && (req.user.username == gameObj.whiteName || req.user.username == gameObj.blackName)){
+                res.json(gameObj)
+            }else{
+                res.status(404).send("player dont belong to this game")
+            }
+            res.json();
         }
     } catch (error) {
         console.error(error);
@@ -95,10 +101,12 @@ exports.getUserData = async (req, res) => {
             if(!exist){
                 throw new Error("NO USER FOUND")
             }else{
-                res.json(exist)
+                const { password, ...safeUser } = exist.toObject(); // use toObject() to ensure you are working with a plain JavaScript object
+                const token = jwt.sign(safeUser, process.env.JWT_SECRET, { expiresIn: '1d' }); // Set token expiration
+                res.json(token);
             }
         }else{
-            //
+            res.status(404).send('username not found');    
         }
     } catch (error) {
         console.error(error);

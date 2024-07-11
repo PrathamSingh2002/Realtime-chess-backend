@@ -1,6 +1,9 @@
 import game from "./games";
 import { io } from "..";
 import User from "../models/userModel";
+import { Socket } from "socket.io";
+
+const INACTIVE_TIMEOUT = 30000; // 30 seconds
 const { v4: uuidv4 } = require('uuid');
 function generateRandomId() {
     const uuid = uuidv4().replace(/-/g, '');
@@ -44,6 +47,7 @@ function calculateDeltaRating(currentRating, opponentRating, result) {
     try {
       await User.updateOne({username: newGame.whiteName},{$set:{rating:newGame.whiteRating+whiteDelta}, $inc:inc1})
       await User.updateOne({username: newGame.blackName},{$set:{rating:newGame.blackRating+blackDelta}, $inc:inc2})
+      delete game.games[newGame.id];
     } catch (error) {
       console.error("Error updating ratings:", error);
       // Handle errors appropriately (e.g., display error message to user)
@@ -76,22 +80,50 @@ function updateScreens(roomId:string, turn:string){
     },100)
 }
 
-module.exports = (socket) => {
-    socket.on('joinRoom',(roomName:string)=>{
-        socket.join(roomName)
+function addPlayerToLobby(player) {
+    game.lobby.push({
+        ...player,
+        lastActive: Date.now()
+    });
+}
+
+function removeInactivePlayers() {
+    const now = Date.now();
+    game.lobby = game.lobby.filter(player => (now - player.lastActive) < INACTIVE_TIMEOUT);
+}
+
+function findActiveOpponent(player) {
+    return game.lobby.find(opp => 
+        opp.variant === player.variant && 
+        opp.username !== player.username
+    );
+}
+setInterval(()=>{
+    console.log(game.lobby);
+}, 1000);
+// // Periodically clean up inactive players
+// setInterval(removeInactivePlayers, INACTIVE_TIMEOUT);
+module.exports = (socket:Socket) => {
+    socket.on('disconnect', () => {
+        game.lobby = game.lobby.filter(item => item.socketId != socket.id);
     })
-    socket.on("move", (roomName:string,fen:string, turn:string, gameOver:boolean)=>{
-        game.games[roomName].game = fen
-        game.games[roomName].gameOver = gameOver
-        updateScreens(roomName,turn)
+    socket.on('joinRoom', (roomName: string) => {
+        socket.join(roomName);
+    });
+    socket.on("cancelJoin",() => {
+        game.lobby = game.lobby.filter(item => item.socketId != socket.id);
     })
-    socket.on("join",function(obj){
-        const opp = game.lobby.find((temp:any)=>{
-            return temp.variant = obj.variant
-        })
-        if(opp){
+    socket.on("move", (roomName: string, fen: string, turn: string, gameOver: boolean) => {
+        game.games[roomName].game = fen;
+        game.games[roomName].gameOver = gameOver;
+        updateScreens(roomName, turn);
+    });
+
+    socket.on("join", function(obj) {
+        const opp = findActiveOpponent(obj);
+        if (opp) {
             const newGame = {
-                id:generateRandomId(),
+                id: generateRandomId(),
                 variant: obj.variant,
                 whiteName: obj.username,
                 whiteRating: obj.rating,
@@ -99,17 +131,15 @@ module.exports = (socket) => {
                 blackRating: opp.rating,
                 gameOver: "nill",
                 whiteTimer: 600,
-                game:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+                game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
                 blackTimer: 600,
-            }
-            game.games[newGame.id] = newGame
-            io.emit('joined/'+newGame.whiteName, newGame)
-            io.emit('joined/'+newGame.blackName, newGame)
+            };
+            game.games[newGame.id] = newGame;
+            io.emit('joined/' + newGame.whiteName, newGame);
+            io.emit('joined/' + newGame.blackName, newGame);
             game.lobby = game.lobby.filter(item => item.username !== opp.username);
-        }else{
-            game.lobby.push({username:obj.username, variant:obj.variant, rating:obj.rating})
+        } else {
+            addPlayerToLobby({socketId:socket.id, username: obj.username, variant: obj.variant, rating: obj.rating});
         }
-        console.log(game.games)
-    })
-    // Socket event listeners and logic (e.g., message handling, room management
+    }); 
 };
