@@ -3,7 +3,6 @@ import { io } from "..";
 import User from "../models/userModel";
 import { Socket } from "socket.io";
 
-const INACTIVE_TIMEOUT = 30000; // 30 seconds
 const { v4: uuidv4 } = require('uuid');
 function generateRandomId() {
     const uuid = uuidv4().replace(/-/g, '');
@@ -77,7 +76,7 @@ function updateScreens(roomId:string, turn:string){
             clearInterval(game.intervals[roomId])
         }
         io.to(roomId).emit('updateScreen', game.games[roomId]);
-    },100)
+    },500)
 }
 
 function addPlayerToLobby(player) {
@@ -87,10 +86,6 @@ function addPlayerToLobby(player) {
     });
 }
 
-function removeInactivePlayers() {
-    const now = Date.now();
-    game.lobby = game.lobby.filter(player => (now - player.lastActive) < INACTIVE_TIMEOUT);
-}
 
 function findActiveOpponent(player) {
     return game.lobby.find(opp => 
@@ -98,9 +93,14 @@ function findActiveOpponent(player) {
         opp.username !== player.username
     );
 }
-setInterval(()=>{
-    console.log(game.lobby);
-}, 1000);
+function abortGameInactivity(id:string){
+    setTimeout(()=>{
+        if(game.games[id] && game.games[id].game == 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'){
+            io.to(game.games[id].id).emit("aborted");
+            delete game.games[id];
+        }
+    },10000)
+}
 // // Periodically clean up inactive players
 // setInterval(removeInactivePlayers, INACTIVE_TIMEOUT);
 module.exports = (socket:Socket) => {
@@ -130,13 +130,14 @@ module.exports = (socket:Socket) => {
                 blackName: opp.username,
                 blackRating: opp.rating,
                 gameOver: "nill",
-                whiteTimer: 600,
+                whiteTimer: 120,
                 game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-                blackTimer: 600,
+                blackTimer: 120,
             };
             game.games[newGame.id] = newGame;
             io.emit('joined/' + newGame.whiteName, newGame);
             io.emit('joined/' + newGame.blackName, newGame);
+            abortGameInactivity(newGame.id);
             game.lobby = game.lobby.filter(item => item.username !== opp.username);
         } else {
             addPlayerToLobby({socketId:socket.id, username: obj.username, variant: obj.variant, rating: obj.rating});
