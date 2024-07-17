@@ -31,23 +31,24 @@ To set up the RealtimeChess Backend locally, follow these steps:
 1. Clone the repository:
    ```bash
    git clone https://github.com/your-username/realtimechess-backend.git
-Navigate into the project directory:
+2. Navigate into the project directory:
+   ```bash
+   cd realtimechess-backend
+3. Install dependencies:
+   ```bash
+   npm install
+4. Set up environment variables::
+   ```bash
+   Create a .env file in the root directory.
+   Define environment-specific variables like PORT, DATABASE_URL, and JWT_SECRET.
+5. Start the server:
+   ```bash
+   npm run dev
+7. The backend server should now be running on http://localhost:your-port.
+   ```bash
+## Usage
+The RealtimeChess Backend provides the following functionality:
 
-bash
-Copy code
-cd realtimechess-backend
-Install dependencies:
-
-bash
-Copy code
-npm install
-Set up environment variables:
-
-Create a .env file in the root directory.
-Define environment-specific variables like PORT, DATABASE_URL, and JWT_SECRET.
-Start the server:
-
-bash
-Copy code
-npm start
-The backend server should now be running on http://localhost:your-port.
+- Authentication: Secure user authentication using JWT tokens.
+- API Endpoints: Explore the API endpoints for user management, game handling, and more.
+- Real-time Communication: Utilize Socket.IO for real-time updates and game synchronization.
