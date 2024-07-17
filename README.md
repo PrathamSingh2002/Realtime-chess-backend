@@ -31,3 +31,23 @@ To set up the RealtimeChess Backend locally, follow these steps:
 1. Clone the repository:
    ```bash
    git clone https://github.com/your-username/realtimechess-backend.git
+Navigate into the project directory:
+
+bash
+Copy code
+cd realtimechess-backend
+Install dependencies:
+
+bash
+Copy code
+npm install
+Set up environment variables:
+
+Create a .env file in the root directory.
+Define environment-specific variables like PORT, DATABASE_URL, and JWT_SECRET.
+Start the server:
+
+bash
+Copy code
+npm start
+The backend server should now be running on http://localhost:your-port.
