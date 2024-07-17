@@ -239,27 +239,27 @@ module.exports = (socket:Socket) => {
             abortGameInactivity(newGame.id);
             game.lobby = game.lobby.filter(item => item.username !== opp.username);
         }
-        else if(game.bots.length>0){
-            leaveAllRooms(ws);
-            const newGame = {
-                id: generateRandomId(),
-                variant: obj.variant,
-                whiteName: obj.username,
-                whiteRating: obj.rating,
-                blackName: game.bots[game.bots.length-1].username,
-                blackRating:300,
-                gameOver: "nill",
-                whiteTimer: 120*obj.variant,
-                game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-                blackTimer: 120*obj.variant,
-            };
-            game.bots.pop();
-            game.games[newGame.id] = newGame;
-            chess.load(newGame.game);
-            io.emit('joined/' + newGame.whiteName, newGame);
-            ws.emit('joinRoom', newGame.id);
-            abortGameInactivity(newGame.id);
-        } 
+        // else if(game.bots.length>0){
+        //     leaveAllRooms(ws);
+        //     const newGame = {
+        //         id: generateRandomId(),
+        //         variant: obj.variant,
+        //         whiteName: obj.username,
+        //         whiteRating: obj.rating,
+        //         blackName: game.bots[game.bots.length-1].username,
+        //         blackRating:300,
+        //         gameOver: "nill",
+        //         whiteTimer: 120*obj.variant,
+        //         game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        //         blackTimer: 120*obj.variant,
+        //     };
+        //     game.bots.pop();
+        //     game.games[newGame.id] = newGame;
+        //     chess.load(newGame.game);
+        //     io.emit('joined/' + newGame.whiteName, newGame);
+        //     ws.emit('joinRoom', newGame.id);
+        //     abortGameInactivity(newGame.id);
+        // } 
         else {
             addPlayerToLobby({socketId:socket.id, username: obj.username, variant: obj.variant, rating: obj.rating});
         }
