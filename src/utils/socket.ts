@@ -2,6 +2,52 @@ import game from "./games";
 import { io } from "..";
 import User from "../models/userModel";
 import { Socket } from "socket.io";
+const ioClient = require('socket.io-client');
+const ws = ioClient('http://localhost:5000');
+const { Chess } = require('chess.js');
+const chess = new Chess();
+let hit = false;
+function getBestMoveAndUpdatedFen(fenPosition) {
+    chess.load(fenPosition);
+    try {
+        // Generate a random move
+        const moves = chess.moves({ verbose: true });
+        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+
+        if (!randomMove) {
+            throw new Error('No valid moves available.');
+        }
+
+        // Make the random move
+        chess.move(randomMove.san);
+
+        // Get the updated FEN
+        const updatedFen = chess.fen();
+
+        return updatedFen;
+    } catch (error) {
+        console.error('Error:', error.message);
+        throw error;
+    } finally {
+        // Optionally handle cleanup here if needed
+    }
+}
+
+ws.on('updateScreen', async (gameData:any) => {
+    chess.load(gameData.game)
+    if(chess.turn() == 'b' && hit == false && chess.isGameOver() == false){
+        hit = true;
+        const fen =  getBestMoveAndUpdatedFen(gameData.game);
+        const gameStatus = chess.isGameOver() 
+                ? chess.isDraw() 
+                    ? "draw" 
+                    : chess.turn() === 'w' ? "loss" : "win"
+                : "nill";
+        ws.emit('move', gameData.id, fen, 'w', gameStatus);
+        hit = false;
+    }
+
+})
 
 const { v4: uuidv4 } = require('uuid');
 function generateRandomId() {
@@ -46,6 +92,12 @@ function calculateDeltaRating(currentRating, opponentRating, result) {
     try {
       await User.updateOne({username: newGame.whiteName},{$set:{rating:newGame.whiteRating+whiteDelta}, $inc:inc1})
       await User.updateOne({username: newGame.blackName},{$set:{rating:newGame.blackRating+blackDelta}, $inc:inc2})
+      const idx = game.botsName.findIndex((el)=>{
+        return el == newGame.blackName;
+      })
+      if(idx != -1){
+        game.bots.push({username:newGame.blackName});
+      }
       delete game.games[newGame.id];
     } catch (error) {
       console.error("Error updating ratings:", error);
@@ -75,7 +127,7 @@ function updateScreens(roomId:string, turn:string){
             updateRatings(game.games[roomId], game.games[roomId].gameOver)
             clearInterval(game.intervals[roomId])
         }
-        io.to(roomId).emit('updateScreen', game.games[roomId]);
+        io.to(roomId).emit('updateScreen', game.games[roomId], turn);
     },500)
 }
 
@@ -85,7 +137,15 @@ function addPlayerToLobby(player) {
         lastActive: Date.now()
     });
 }
-
+function leaveAllRooms(socket:Socket) {
+    // Get all rooms the socket is currently in
+    if(socket.rooms){
+        const rooms = Object.keys(socket.rooms);
+        rooms.forEach(room => {
+          socket.leave(room);
+        });
+    }
+  }
 
 function findActiveOpponent(player) {
     return game.lobby.find(opp => 
@@ -97,6 +157,12 @@ function abortGameInactivity(id:string){
     setTimeout(()=>{
         if(game.games[id] && game.games[id].game == 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'){
             io.to(game.games[id].id).emit("aborted");
+            const idx = game.botsName.findIndex((el)=>{
+                return el == game.games[id].blackName;
+            })
+            if(idx != -1){
+                game.bots.push({username:game.games[id].blackName});
+            }
             delete game.games[id];
         }
     },10000)
@@ -112,6 +178,30 @@ module.exports = (socket:Socket) => {
     });
     socket.on("cancelJoin",() => {
         game.lobby = game.lobby.filter(item => item.socketId != socket.id);
+    })
+    socket.on("challengeSend", (player1:string, variant:string, rating:string, player2:string) => {
+        io.emit('challengeSend/'+player2, player1, variant, rating, player2);
+    })
+    socket.on("challengeAccept", (player1:any, player2:any, variant: number) => {
+        const newGame = {
+            id: generateRandomId(),
+            variant: variant,
+            whiteName: player1.username,
+            whiteRating: player1.rating,
+            blackName: player2.username,
+            blackRating: player2.rating,
+            gameOver: "nill",
+            whiteTimer: 120*variant,
+            game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            blackTimer: 120*variant,
+        };
+        game.games[newGame.id] = newGame;
+        io.emit('joined/' + newGame.whiteName, newGame);
+        io.emit('joined/' + newGame.blackName, newGame);
+        abortGameInactivity(newGame.id);
+    })
+    socket.on("challengeRejected", (player:string) => {
+        io.emit('challengeRejected/'+player);
     })
     socket.on("move", (roomName: string, fen: string, turn: string, gameOver: boolean) => {
         game.games[roomName].game = fen;
@@ -148,7 +238,29 @@ module.exports = (socket:Socket) => {
             io.emit('joined/' + newGame.blackName, newGame);
             abortGameInactivity(newGame.id);
             game.lobby = game.lobby.filter(item => item.username !== opp.username);
-        } else {
+        }
+        else if(game.bots.length>0){
+            leaveAllRooms(ws);
+            const newGame = {
+                id: generateRandomId(),
+                variant: obj.variant,
+                whiteName: obj.username,
+                whiteRating: obj.rating,
+                blackName: game.bots[game.bots.length-1].username,
+                blackRating:300,
+                gameOver: "nill",
+                whiteTimer: 120*obj.variant,
+                game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+                blackTimer: 120*obj.variant,
+            };
+            game.bots.pop();
+            game.games[newGame.id] = newGame;
+            chess.load(newGame.game);
+            io.emit('joined/' + newGame.whiteName, newGame);
+            ws.emit('joinRoom', newGame.id);
+            abortGameInactivity(newGame.id);
+        } 
+        else {
             addPlayerToLobby({socketId:socket.id, username: obj.username, variant: obj.variant, rating: obj.rating});
         }
     }); 

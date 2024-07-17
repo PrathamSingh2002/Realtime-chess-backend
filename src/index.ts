@@ -1,6 +1,5 @@
 import express from 'express';
 import connectDB from './utils/db';
-import { METHODS } from 'http';
 const bp = require('body-parser')
 const cors = require('cors')
 const app = express();
