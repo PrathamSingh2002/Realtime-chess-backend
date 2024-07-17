@@ -3,7 +3,7 @@ import { io } from "..";
 import User from "../models/userModel";
 import { Socket } from "socket.io";
 const ioClient = require('socket.io-client');
-const ws = ioClient('http://localhost:5000');
+const ws = ioClient(`http://localhost:${process.env.PORT}`);
 const { Chess } = require('chess.js');
 const chess = new Chess();
 let hit = false;
