@@ -30,7 +30,7 @@ To set up the RealtimeChess Backend locally, follow these steps:
    git clone https://github.com/PrathamSingh2002/Realtime-chess-backend.git
 2. Navigate into the project directory:
    ```bash
-   cd realtimechess-backend
+   cd Realtime-chess-backend
 3. Install dependencies:
    ```bash
    npm install
