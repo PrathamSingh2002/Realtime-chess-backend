@@ -45,7 +45,6 @@ To set up the RealtimeChess Backend locally, follow these steps:
    ```bash
    npm run dev
 7. The backend server should now be running on http://localhost:your-port.
-   ```bash
 ## Usage
 The RealtimeChess Backend provides the following functionality:
 
