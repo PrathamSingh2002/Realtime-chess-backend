@@ -7,6 +7,8 @@ const ws = ioClient(`http://localhost:${process.env.PORT}`);
 const { Chess } = require('chess.js');
 const chess = new Chess();
 let hit = false;
+const MATCH_BOT_WITH_PLAYER_TIMEOUT = 5000;
+const AUTO_ABORT_TIMEOUT = 10000
 function getBestMoveAndUpdatedFen(fenPosition) {
     chess.load(fenPosition);
     try {
@@ -97,6 +99,7 @@ function calculateDeltaRating(currentRating, opponentRating, result) {
       })
       if(idx != -1){
         game.bots.push({username:newGame.blackName});
+        ws.leave(game.games[newGame.id]);
       }
       delete game.games[newGame.id];
     } catch (error) {
@@ -137,16 +140,30 @@ function addPlayerToLobby(player) {
         lastActive: Date.now()
     });
 }
-function leaveAllRooms(socket:Socket) {
-    // Get all rooms the socket is currently in
-    if(socket.rooms){
-        const rooms = Object.keys(socket.rooms);
-        rooms.forEach(room => {
-          socket.leave(room);
-        });
-    }
-  }
-
+function matchPlayerWithBot(){
+    while(game.bots.length>0 && game.lobby.length>0){
+        const obj = game.lobby[game.lobby.length-1];
+        const newGame = {
+            id: generateRandomId(),
+            variant: obj.variant,
+            whiteName: obj.username,
+            whiteRating: obj.rating,
+            blackName: game.bots[game.bots.length-1].username,
+            blackRating:300,
+            gameOver: "nill",
+            whiteTimer: 120*obj.variant,
+            game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            blackTimer: 120*obj.variant,
+        };
+        game.bots.pop();
+        game.lobby.pop();
+        game.games[newGame.id] = newGame;
+        chess.load(newGame.game);
+        io.emit('joined/' + newGame.whiteName, newGame);
+        ws.emit('joinRoom', newGame.id);
+        abortGameInactivity(newGame.id);
+    } 
+}
 function findActiveOpponent(player) {
     return game.lobby.find(opp => 
         opp.variant === player.variant && 
@@ -165,10 +182,11 @@ function abortGameInactivity(id:string){
             }
             delete game.games[id];
         }
-    },10000)
+    },AUTO_ABORT_TIMEOUT)
 }
-// // Periodically clean up inactive players
-// setInterval(removeInactivePlayers, INACTIVE_TIMEOUT);
+// matchup players with bot
+setInterval(matchPlayerWithBot, MATCH_BOT_WITH_PLAYER_TIMEOUT);
+
 module.exports = (socket:Socket) => {
     socket.on('disconnect', () => {
         game.lobby = game.lobby.filter(item => item.socketId != socket.id);
@@ -180,25 +198,29 @@ module.exports = (socket:Socket) => {
         game.lobby = game.lobby.filter(item => item.socketId != socket.id);
     })
     socket.on("challengeSend", (player1:string, variant:string, rating:string, player2:string) => {
-        io.emit('challengeSend/'+player2, player1, variant, rating, player2);
+        if(player1!=player2){
+            io.emit('challengeSend/'+player2, player1, variant, rating, player2);
+        }
     })
     socket.on("challengeAccept", (player1:any, player2:any, variant: number) => {
-        const newGame = {
-            id: generateRandomId(),
-            variant: variant,
-            whiteName: player1.username,
-            whiteRating: player1.rating,
-            blackName: player2.username,
-            blackRating: player2.rating,
-            gameOver: "nill",
-            whiteTimer: 120*variant,
-            game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-            blackTimer: 120*variant,
-        };
-        game.games[newGame.id] = newGame;
-        io.emit('joined/' + newGame.whiteName, newGame);
-        io.emit('joined/' + newGame.blackName, newGame);
-        abortGameInactivity(newGame.id);
+        if(player1.username != player2.username){
+            const newGame = {
+                id: generateRandomId(),
+                variant: variant,
+                whiteName: player1.username,
+                whiteRating: player1.rating,
+                blackName: player2.username,
+                blackRating: player2.rating,
+                gameOver: "nill",
+                whiteTimer: 120*variant,
+                game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+                blackTimer: 120*variant,
+            };
+            game.games[newGame.id] = newGame;
+            io.emit('joined/' + newGame.whiteName, newGame);
+            io.emit('joined/' + newGame.blackName, newGame);
+            abortGameInactivity(newGame.id);
+        }
     })
     socket.on("challengeRejected", (player:string) => {
         io.emit('challengeRejected/'+player);
@@ -239,27 +261,6 @@ module.exports = (socket:Socket) => {
             abortGameInactivity(newGame.id);
             game.lobby = game.lobby.filter(item => item.username !== opp.username);
         }
-        // else if(game.bots.length>0){
-        //     leaveAllRooms(ws);
-        //     const newGame = {
-        //         id: generateRandomId(),
-        //         variant: obj.variant,
-        //         whiteName: obj.username,
-        //         whiteRating: obj.rating,
-        //         blackName: game.bots[game.bots.length-1].username,
-        //         blackRating:300,
-        //         gameOver: "nill",
-        //         whiteTimer: 120*obj.variant,
-        //         game: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-        //         blackTimer: 120*obj.variant,
-        //     };
-        //     game.bots.pop();
-        //     game.games[newGame.id] = newGame;
-        //     chess.load(newGame.game);
-        //     io.emit('joined/' + newGame.whiteName, newGame);
-        //     ws.emit('joinRoom', newGame.id);
-        //     abortGameInactivity(newGame.id);
-        // } 
         else {
             addPlayerToLobby({socketId:socket.id, username: obj.username, variant: obj.variant, rating: obj.rating});
         }
