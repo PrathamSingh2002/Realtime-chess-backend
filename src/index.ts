@@ -11,9 +11,12 @@ export const  io = require('socket.io')(http, {cors:{
   methods: ["GET", "POST"],
   credentials: true
 }});
-app.use(bp.json())
-app.use(cors({origin:true
-}))
+app.use(bp.json());
+app.use(cors({
+  origin: '*', // Allow all origins or specify a list of allowed origins
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
 const socketHandler = require('./utils/socket'); // Assuming handler file
 
 // ... other server setup
