@@ -10,13 +10,13 @@ export const  io = require('socket.io')(http, {cors:{
   origin: 'https://realtime-chess-client.vercel.app',
   methods: ["GET", "POST"],
   credentials: true
-}});
+},path: '/api1/socket.io' });
 app.use(bp.json());
 app.use(cors({
   origin: 'https://realtime-chess-client.vercel.app',
   methods: ['GET', 'POST'],
   credentials: true
-}));
+},));
 const socketHandler = require('./utils/socket'); // Assuming handler file
 
 // ... other server setup
