@@ -7,13 +7,13 @@ const PORT = process.env.PORT || 5000;
 const http = require('http').createServer(app);
 const apiRouter = require('./routes/api');
 export const  io = require('socket.io')(http, {cors:{
-  origin: 'https://realtime-chess-client.vercel.app',
+  origin: '*',
   methods: ["GET", "POST"],
   credentials: true
-},path: '/api1/socket.io' });
+}});
 app.use(bp.json());
 app.use(cors({
-  origin: 'https://realtime-chess-client.vercel.app',
+  origin: '*',
   methods: ['GET', 'POST'],
   credentials: true
 },));
