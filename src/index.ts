@@ -10,8 +10,7 @@ export const  io = require('socket.io')(http, {cors:{
   origin: '*',
   methods: ["GET", "POST"],
   credentials: true
-},
-path: '/api1/socket.io' // Path for Socket.IO
+}
 });
 app.use(bp.json());
 app.use(cors({
